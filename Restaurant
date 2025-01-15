@@ -1,0 +1,153 @@
+import tkinter as tk
+from tkinter import messagebox
+from PIL import Image, ImageTk  # For working with images
+
+class Restaurant:
+    def __init__(self, totalForDay: float, menu: dict, name: str):
+        self.totalForDay = totalForDay  # Total earnings for the day
+        self.menu = menu  # Menu with items and their prices
+        self.name = name  # Restaurant's name
+        self.shift = 0.0  # Earnings during the current shift
+
+    def addtototal(self, shift: float):
+        self.totalForDay += shift  # Add shift earnings to the daily total
+
+    def addToMenu(self, name: str, price: float, image_path: str):
+        self.menu[name] = {"price": price, "image": image_path}  # Add a new item with image to the menu
+
+    def removeFromMenu(self, name: str):
+        if name in self.menu:
+            del self.menu[name]  # Remove an item from the menu
+
+    def addToShift(self, name: str):
+        if name in self.menu:
+            self.shift += self.menu[name]["price"]  # Add the item's price to the shift earnings
+
+class Table(Restaurant):
+    def __init__(self, table_number: int, menu: dict, name: str):
+        super().__init__(totalForDay=0, menu=menu, name=name)
+        self.table_number = table_number  # Unique identifier for the table
+        self.orders = []  # List to store orders for this table
+        self.bill = 0.0  # Initialize bill total for the table
+
+    def placeOrder(self, item_name: str):
+        if item_name in self.menu:
+            self.orders.append(item_name)  # Add the ordered item to the table's orders
+            self.addToShift(item_name)  # Add the item's price to the shift earnings
+            self.addToBill(item_name)  # Add the item's price to the table's bill
+
+    def addToBill(self, item_name: str):
+        """Add the price of the item to the table's bill."""
+        if item_name in self.menu:
+            self.bill += self.menu[item_name]["price"]  # Add the item's price to the bill
+
+    def showOrders(self):
+        return "\n".join(self.orders)
+
+    def showBill(self):
+        return f"${self.bill:.2f}"
+
+# Prince Coffee House's product offerings with images
+menu = {
+    "Macchiato": {"price": 4.00, "image": "macchiato.jpg"},
+    "Cappuccino Viennese": {"price": 5.50, "image": "cappuccino_viennese.jpg"},
+    "Espresso": {"price": 3.50, "image": "espresso.jpg"},
+    "Cafe Parisien": {"price": 5.00, "image": "cafe_parisien.jpg"},
+    "Karma Cafe": {"price": 5.00, "image": "karma_cafe.jpg"},
+    # Add other menu items with their respective images...
+}
+
+# Create the PC UI for managing the restaurant
+class RestaurantPCUI:
+    def __init__(self):
+        self.window = tk.Tk()
+        self.window.title("Prince Coffee House Restaurant Management")
+
+        self.table_count = 5  # Number of tables
+        self.tables = [Table(i, menu, "Prince Coffee House") for i in range(self.table_count)]
+        self.table_icon = None  # To store the resized table icon
+
+        self.load_table_icon()
+        self.create_ui()
+
+    def load_table_icon(self):
+        """Load and resize the table image for buttons."""
+        try:
+            img = Image.open("/mnt/data/table.png")  # Path to the uploaded image
+            img = img.resize((50, 50))  # Resize the image
+            self.table_icon = ImageTk.PhotoImage(img)
+        except Exception as e:
+            print(f"Error loading table icon: {e}")
+            self.table_icon = None
+
+    def create_ui(self):
+        # Create buttons for each table
+        for table in self.tables:
+            table_button = tk.Button(self.window, text=f"Table {table.table_number}",
+                                     image=self.table_icon, compound="top",
+                                     command=lambda t=table: self.show_table(t))
+            table_button.pack(padx=10, pady=5)
+
+    def show_table(self, table: Table):
+        table_window = tk.Toplevel(self.window)
+        table_window.title(f"Table {table.table_number} Orders")
+
+        # Display orders
+        orders_label = tk.Label(table_window, text="Orders:")
+        orders_label.pack()
+        orders_text = tk.Text(table_window, height=10, width=50)
+        orders_text.insert(tk.END, table.showOrders())
+        orders_text.pack()
+
+        # Display bill
+        bill_label = tk.Label(table_window, text="Bill:")
+        bill_label.pack()
+        bill_text = tk.Label(table_window, text=table.showBill())
+        bill_text.pack()
+
+        # Menu items display with buttons
+        self.display_menu_items(table_window, table)
+
+        # Close button for the table window
+        close_button = tk.Button(table_window, text="Close", command=table_window.destroy)
+        close_button.pack()
+
+    def display_menu_items(self, window, table):
+        """Display each menu item with an image and a button to add it to the order."""
+        for item_name, item_info in menu.items():
+            item_frame = tk.Frame(window)
+            item_frame.pack(padx=10, pady=5)
+
+            # Load image using PIL
+            try:
+                img = Image.open(item_info["image"])
+                img = img.resize((100, 100))  # Resize the image
+                img = ImageTk.PhotoImage(img)
+                image_label = tk.Label(item_frame, image=img)
+                image_label.image = img  # Keep a reference to the image
+                image_label.grid(row=0, column=0, padx=5, pady=5)
+            except Exception as e:
+                print(f"Error loading image for {item_name}: {e}")
+                image_label = tk.Label(item_frame, text="Image not found")
+                image_label.grid(row=0, column=0, padx=5, pady=5)
+
+            # Display item name and price
+            name_label = tk.Label(item_frame, text=f"{item_name} - ${item_info['price']:.2f}")
+            name_label.grid(row=0, column=1, padx=5, pady=5)
+
+            # Order button for each item
+            order_button = tk.Button(item_frame, text=f"Add {item_name}",
+                                     command=lambda name=item_name: self.place_order(name, table))
+            order_button.grid(row=0, column=2, padx=5, pady=5)
+
+    def place_order(self, item_name: str, table: Table):
+        """Add the item to the table's orders and show an info message."""
+        table.placeOrder(item_name)
+        messagebox.showinfo("Order Added", f"{item_name} has been added to Table {table.table_number}'s order.")
+
+    def run(self):
+        self.window.mainloop()
+
+# Run the application
+restaurant_ui = RestaurantPCUI()
+restaurant_ui.run()
