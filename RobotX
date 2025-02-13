@@ -1,0 +1,188 @@
+import pygame
+import random
+
+pygame.init()
+
+window = pygame.display.set_mode((1200, 800))
+pygame.display.set_caption("Robot Game")
+asteroid = pygame.image.load("Asteroid.png")
+coin = pygame.image.load("coin.png")
+coin = pygame.transform.scale(coin, (100, 100))  # Change size to 100x100
+
+
+try:
+    robot = pygame.image.load("robot.png")
+except pygame.error as e:
+    print(f"Error loading image: {e}")
+    robot = None  
+
+clock = pygame.time.Clock()
+font = pygame.font.Font("A.ttf", 37)
+
+class Game:
+    def __init__(self):
+        self.reset_game()
+
+    def reset_game(self):
+        self.movex = 0
+        self.movey = 0
+        self.position_x = 550
+        self.position_y = 750
+        self.running = False
+        self.asteroids = []
+        self.hearts = 3
+        self.max_asteroids = 5
+        self.coins = []
+        self.score = 0  
+
+    def draw_button(self, text, x, y, width, height, color, hover_color):
+        mouse = pygame.mouse.get_pos()
+        click = pygame.mouse.get_pressed()
+
+        if x < mouse[0] < x + width and y < mouse[1] < y + height:
+            pygame.draw.rect(window, hover_color, (x, y, width, height))
+            if click[0]:
+                return True
+        else:
+            pygame.draw.rect(window, color, (x, y, width, height))
+
+        text_surface = font.render(text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center=(x + width // 2, y + height // 2))
+        window.blit(text_surface, text_rect)
+        return False
+
+    def StartMenu(self):
+        menu_running = True
+        while menu_running:
+            window.fill((0, 0, 0))
+            title_text = font.render("Robot X Y Z", True, (255, 255, 255))
+            window.blit(title_text, (window.get_width() // 2 - title_text.get_width() // 2, 200))
+
+            if self.draw_button("New Game", 500, 400, 200, 70, (192, 0, 2), (100, 200, 100)):
+                menu_running = False
+                self.running = True
+
+            pygame.display.update()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+
+    def Movement(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in [pygame.K_UP, pygame.K_w]:
+                self.movey = -5
+            if event.key in [pygame.K_DOWN, pygame.K_s]:
+                self.movey = 5
+            if event.key in [pygame.K_RIGHT, pygame.K_d]:
+                self.movex = 5
+            if event.key in [pygame.K_LEFT, pygame.K_a]:
+                self.movex = -5
+
+        elif event.type == pygame.KEYUP:
+            if event.key in [pygame.K_UP, pygame.K_DOWN, pygame.K_w, pygame.K_s]:
+                self.movey = 0
+            if event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_a, pygame.K_d]:
+                self.movex = 0
+
+    def update_position(self):
+        self.position_x += self.movex
+        self.position_y += self.movey
+        self.position_x = max(0, min(1150, self.position_x))
+        self.position_y = max(0, min(745, self.position_y))
+
+    def create_coin(self):
+        if random.randint(1, 60) == 1:  
+            x = random.randint(0, 1150)  
+            y = -50  
+            self.coins.append([x, y])  
+
+    def move_coins(self):
+        for coin_pos in self.coins:
+            coin_pos[1] += 3  
+
+        self.coins = [coin for coin in self.coins if coin[1] < 800]  
+
+    def check_coin_collision(self):
+        robot_rect = pygame.Rect(self.position_x, self.position_y, robot.get_width(), robot.get_height())
+
+        for coin_pos in self.coins[:]:
+            coin_rect = pygame.Rect(coin_pos[0], coin_pos[1], 50, 50)  
+
+            if robot_rect.colliderect(coin_rect):
+                self.coins.remove(coin_pos)
+                self.score += 1  
+
+    def create_asteroid(self):
+        if len(self.asteroids) < self.max_asteroids and random.randint(1, 30) == 1:
+            x_pos = random.randint(60, 1100)
+            y_pos = -asteroid.get_height()
+            self.asteroids.append((asteroid, x_pos, y_pos, asteroid.get_width(), asteroid.get_height()))
+
+    def move_asteroids(self):
+        for i in range(len(self.asteroids)):
+            surface, x, y, w, h = self.asteroids[i]
+            self.asteroids[i] = (surface, x, y + 5, w, h)
+        self.asteroids = [asteroid for asteroid in self.asteroids if asteroid[2] < 800]
+
+    def check_collision(self):
+        robot_rect = pygame.Rect(self.position_x, self.position_y, robot.get_width(), robot.get_height())
+
+        for asteroid in self.asteroids[:]:
+            asteroid_rect = pygame.Rect(asteroid[1], asteroid[2], asteroid[3], asteroid[4])
+            if robot_rect.colliderect(asteroid_rect):
+                self.hearts -= 1
+                self.asteroids.remove(asteroid)
+                if self.hearts <= 0:
+                    self.display_game_over()
+
+    def display_game_over(self):
+        window.fill((255, 255, 255))
+        game_over_text = font.render("Game Over!", True, (0, 0, 0))
+        window.blit(game_over_text, (window.get_width() // 2 - game_over_text.get_width() // 2, window.get_height() // 2))
+        pygame.display.update()
+        pygame.time.delay(3000)
+        self.reset_game()
+        self.StartMenu()
+
+    def screen(self):
+        window.fill((255, 255, 255))
+        if robot:
+            window.blit(robot, (self.position_x, self.position_y))
+
+        self.create_asteroid()
+        self.move_asteroids()
+        
+        for asteroid in self.asteroids:
+            window.blit(asteroid[0], (asteroid[1], asteroid[2]))
+
+        for coin_pos in self.coins:
+            window.blit(coin, (coin_pos[0], coin_pos[1]))  
+
+        self.check_collision()
+        self.check_coin_collision()
+
+        hearts_text = font.render(f"Hearts: {self.hearts}", True, (0, 0, 0))
+        score_text = font.render(f"Score: {self.score}", True, (0, 0, 0))  
+
+        window.blit(hearts_text, (10, 10))
+        window.blit(score_text, (10, 50))  
+
+        pygame.display.update()
+
+    def start(self):
+        self.StartMenu()
+        while self.running:
+            clock.tick(60)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+                self.Movement(event)
+
+            self.update_position()
+            self.create_coin()
+            self.move_coins()
+            self.screen()
+
+Game().start()
